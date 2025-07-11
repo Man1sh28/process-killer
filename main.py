@@ -5,22 +5,47 @@ import json
 import os
 import psutil
 from dotenv import load_dotenv
+import subprocess
 
-# Load .env API key
+
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
-# Ask Gemini with system prompt and running process info
-def ask_gemini(prompt, process_list):
-    system_prompt = f"""You are a macOS task assistant. You can only act on the following processes:
+import os
 
+def get_installed_apps():
+    app_dirs = ["/Applications", "/System/Applications"]
+    apps = []
+
+    for app_dir in app_dirs:
+        try:
+            for item in os.listdir(app_dir):
+                if item.endswith(".app"):
+                    apps.append(item.replace(".app", ""))
+        except Exception:
+            continue
+
+    return sorted(list(set(apps)))
+
+installed_apps = ", ".join(get_installed_apps())
+def ask_gemini(prompt, process_list):
+    system_prompt = f"""
+You are a helpful assistant that can also help in opening and killing of
+
+Here is a list of installed apps:
+{installed_apps}
+
+Here is a list of currently running processes:
 {process_list}
 
-When asked to kill apps, respond ONLY in this JSON format:
-```json
-{{ "kill": ["AppName1", "AppName2"] }}
-```"""
+When asked to **open** or **kill** apps, respond ONLY in this format:
+
+
+{{ "open": ["AppName1", "AppName2"], "kill": ["AppName3", "AppName4"] }}
+
+
+"""
 
     payload = {
         "contents": [
@@ -34,7 +59,6 @@ When asked to kill apps, respond ONLY in this JSON format:
     response.raise_for_status()
     return response.json()["candidates"][0]["content"]["parts"][0]["text"]
 
-# Get top 30 processes by memory (and ignore broken entries)
 def get_running_processes():
     processes = []
     for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
@@ -66,7 +90,28 @@ def kill_by_names(names):
             pass
     return killed
 
-# When user sends a message
+def open_apps(app_names):
+    opened = []
+    app_dirs = ["/Applications", "/System/Applications"]
+
+    for app_name in app_names:
+        found = False
+        for dir in app_dirs:
+            for item in os.listdir(dir):
+                if item.lower().endswith(".app") and app_name.lower() in item.lower():
+                    app_path = os.path.join(dir, item)
+                    try:
+                        subprocess.run(["open", app_path])
+                        opened.append(item.replace(".app", ""))
+                        found = True
+                        break
+                    except Exception:
+                        pass
+            if found:
+                break
+    return opened
+
+
 def send_message(event=None):
     prompt = input_field.get()
     if not prompt.strip():
@@ -84,11 +129,30 @@ def send_message(event=None):
     try:
         response = ask_gemini(prompt, formatted_list)
 
-        # Try to parse JSON from Gemini response
+       
         cleaned = response.replace("```json", "").replace("```", "").strip()
         kill_list = json.loads(cleaned)["kill"]
+        open_list = json.loads(cleaned)["open"]
+        reply_parts = []
 
-        # Ask for confirmation before killing
+        # 👉 Open apps
+        if open_list:
+            opened = open_apps(open_list)
+            reply_parts.append(f"🚀 Opened: {', '.join(opened)}" if opened else "❌ No apps opened.")
+
+        # 👉 Kill apps
+        if kill_list:
+            proc_names = "\n".join(kill_list)
+            confirm = messagebox.askyesno("Confirm Kill", f"Gemini wants to kill these:\n\n{proc_names}\n\nDo you want to proceed?")
+            if confirm:
+                killed = kill_by_names(kill_list)
+                reply_parts.append(f"🔪 Killed: {', '.join(killed)}" if killed else "❌ No processes killed.")
+            else:
+                reply_parts.append("🛑 Kill request cancelled.")
+
+        reply = "\n".join(reply_parts) if reply_parts else "✅ No action taken."
+
+        
         proc_names = "\n".join(kill_list)
         confirm = messagebox.askyesno("Confirm Kill", f"Gemini wants to kill these:\n\n{proc_names}\n\nDo you want to proceed?")
         if confirm:
@@ -105,7 +169,7 @@ def send_message(event=None):
     chat_box.config(state=tk.DISABLED)
     chat_box.see(tk.END)
 
-# GUI setup
+
 root = tk.Tk()
 root.title("TaskAI - Gemini Process Manager")
 root.geometry("650x500")
