@@ -129,10 +129,11 @@ def send_message(event=None):
     try:
         response = ask_gemini(prompt, formatted_list)
 
-       
+        # Parse the JSON response
         cleaned = response.replace("```json", "").replace("```", "").strip()
-        kill_list = json.loads(cleaned)["kill"]
-        open_list = json.loads(cleaned)["open"]
+        parsed_response = json.loads(cleaned)
+        kill_list = parsed_response.get("kill", [])
+        open_list = parsed_response.get("open", [])
         reply_parts = []
 
         # 👉 Open apps
@@ -140,7 +141,7 @@ def send_message(event=None):
             opened = open_apps(open_list)
             reply_parts.append(f"🚀 Opened: {', '.join(opened)}" if opened else "❌ No apps opened.")
 
-        # 👉 Kill apps
+        # 👉 Kill apps (only if there are apps to kill)
         if kill_list:
             proc_names = "\n".join(kill_list)
             confirm = messagebox.askyesno("Confirm Kill", f"Gemini wants to kill these:\n\n{proc_names}\n\nDo you want to proceed?")
@@ -152,17 +153,8 @@ def send_message(event=None):
 
         reply = "\n".join(reply_parts) if reply_parts else "✅ No action taken."
 
-        
-        proc_names = "\n".join(kill_list)
-        confirm = messagebox.askyesno("Confirm Kill", f"Gemini wants to kill these:\n\n{proc_names}\n\nDo you want to proceed?")
-        if confirm:
-            killed = kill_by_names(kill_list)
-            reply = f"🔪 Killed: {', '.join(killed)}" if killed else "❌ No processes killed."
-        else:
-            reply = "🛑 Kill request cancelled."
-
     except Exception:
-        
+        # If JSON parsing fails, just show the raw response
         reply = response
 
     chat_box.insert(tk.END, f"Gemini: {reply}\n", "gemini")
@@ -193,4 +185,3 @@ send_button.pack(side=tk.RIGHT)
 
 input_field.focus()
 root.mainloop()
-
