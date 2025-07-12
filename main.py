@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext, messagebox
+from tkinter import scrolledtext, messagebox, ttk
 import requests
 import json
 import os
@@ -111,6 +111,131 @@ def open_apps(app_names):
                 break
     return opened
 
+def show_kill_dialog(kill_list):
+    """Show a dialog with checkboxes for each process to kill"""
+    kill_dialog = tk.Toplevel(root)
+    kill_dialog.title("Select Processes to Kill")
+    kill_dialog.geometry("450x400")
+    kill_dialog.resizable(False, False)
+    kill_dialog.grab_set()  # Make it modal
+    
+    # Center the dialog
+    kill_dialog.transient(root)
+    kill_dialog.geometry("+%d+%d" % (root.winfo_rootx() + 50, root.winfo_rooty() + 50))
+    
+    # Main frame
+    main_frame = ttk.Frame(kill_dialog, padding="10")
+    main_frame.pack(fill=tk.BOTH, expand=True)
+    
+    # Title
+    title_label = ttk.Label(main_frame, text="Select processes to kill:", font=("Segoe UI", 12, "bold"))
+    title_label.pack(anchor=tk.W, pady=(0, 10))
+    
+    # Scrollable frame for checkboxes
+    canvas = tk.Canvas(main_frame, height=250)
+    scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+    scrollable_frame = ttk.Frame(canvas)
+    
+    scrollable_frame.bind(
+        "<Configure>",
+        lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+    )
+    
+    canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+    canvas.configure(yscrollcommand=scrollbar.set)
+    
+    # Store checkbox variables
+    checkbox_vars = {}
+    
+    # Get current processes for detailed info
+    current_processes = get_running_processes()
+    process_info = {p['name']: p for p in current_processes}
+    
+    # Create checkboxes for each process
+    for i, process_name in enumerate(kill_list):
+        var = tk.BooleanVar()
+        checkbox_vars[process_name] = var
+        
+        # Get process info if available
+        info = process_info.get(process_name, {})
+        memory_info = f" ({info.get('memory_percent', 0):.1f}% RAM)" if info else ""
+        
+        # Check if process is protected
+        protected = ['launchd', 'kernel', 'system', 'windowserver', 'finder', 'dock']
+        is_protected = any(p in process_name.lower() for p in protected)
+        
+        checkbox_frame = ttk.Frame(scrollable_frame)
+        checkbox_frame.pack(fill=tk.X, pady=2)
+        
+        cb = ttk.Checkbutton(
+            checkbox_frame,
+            text=f"{process_name}{memory_info}",
+            variable=var,
+            state="disabled" if is_protected else "normal"
+        )
+        cb.pack(side=tk.LEFT)
+        
+        if is_protected:
+            warning_label = ttk.Label(checkbox_frame, text="(Protected)", foreground="red", font=("Segoe UI", 9))
+            warning_label.pack(side=tk.LEFT, padx=(5, 0))
+        else:
+            # Pre-check non-protected processes
+            var.set(True)
+    
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+    
+    # Button frames - separate for better layout
+    select_frame = ttk.Frame(main_frame)
+    select_frame.pack(fill=tk.X, pady=(10, 5))
+    
+    action_frame = ttk.Frame(main_frame)
+    action_frame.pack(fill=tk.X, pady=(5, 0))
+    
+    # Select All/None buttons
+    def select_all():
+        for name, var in checkbox_vars.items():
+            protected = ['launchd', 'kernel', 'system', 'windowserver', 'finder', 'dock']
+            is_protected = any(p in name.lower() for p in protected)
+            if not is_protected:
+                var.set(True)
+    
+    def select_none():
+        for var in checkbox_vars.values():
+            var.set(False)
+    
+    ttk.Button(select_frame, text="Select All", command=select_all).pack(side=tk.LEFT, padx=(0, 5))
+    ttk.Button(select_frame, text="Select None", command=select_none).pack(side=tk.LEFT)
+    
+    # Result variable
+    result = {"confirmed": False, "selected": []}
+    
+    def confirm_kill():
+        selected = [name for name, var in checkbox_vars.items() if var.get()]
+        result["confirmed"] = True
+        result["selected"] = selected
+        kill_dialog.destroy()
+    
+    def cancel_kill():
+        result["confirmed"] = False
+        result["selected"] = []
+        kill_dialog.destroy()
+    
+    # Action buttons - more prominent
+    cancel_btn = ttk.Button(action_frame, text="Cancel", command=cancel_kill)
+    cancel_btn.pack(side=tk.RIGHT, padx=(5, 0))
+    
+    kill_btn = ttk.Button(action_frame, text="🔪 Kill Selected", command=confirm_kill)
+    kill_btn.pack(side=tk.RIGHT, padx=(5, 0))
+    
+    # Make kill button more prominent
+    kill_btn.configure(style="Accent.TButton")
+    
+    # Wait for dialog to close
+    kill_dialog.wait_window()
+    
+    return result
+
 
 def send_message(event=None):
     prompt = input_field.get()
@@ -143,11 +268,13 @@ def send_message(event=None):
 
         # 👉 Kill apps (only if there are apps to kill)
         if kill_list:
-            proc_names = "\n".join(kill_list)
-            confirm = messagebox.askyesno("Confirm Kill", f"Gemini wants to kill these:\n\n{proc_names}\n\nDo you want to proceed?")
-            if confirm:
-                killed = kill_by_names(kill_list)
+            kill_result = show_kill_dialog(kill_list)
+            
+            if kill_result["confirmed"] and kill_result["selected"]:
+                killed = kill_by_names(kill_result["selected"])
                 reply_parts.append(f"🔪 Killed: {', '.join(killed)}" if killed else "❌ No processes killed.")
+            elif kill_result["confirmed"] and not kill_result["selected"]:
+                reply_parts.append("ℹ️ No processes selected to kill.")
             else:
                 reply_parts.append("🛑 Kill request cancelled.")
 
