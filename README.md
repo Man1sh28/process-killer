@@ -1,4 +1,4 @@
-# TaskAI - Gemini Process Manager
+# PROCESS-KILLER - Gemini Process Manager
 
 This is a simple macOS task manager that uses Google's Gemini API to help you manage running processes. You can ask it to kill applications by name, and it will ask for your confirmation before proceeding.
 
