@@ -6,6 +6,7 @@ import os
 import psutil
 from dotenv import load_dotenv
 import subprocess
+import time
 
 
 load_dotenv()
@@ -31,7 +32,7 @@ def get_installed_apps():
 installed_apps = ", ".join(get_installed_apps())
 def ask_gemini(prompt, process_list):
     system_prompt = f"""
-You are a helpful assistant that can also help in opening and killing of
+You are a chatbot assistant that tells me the general knowledge data helps me in daily processes that can also help in opening and killing in macoos
 
 Here is a list of installed apps:
 {installed_apps}
@@ -237,9 +238,45 @@ def show_kill_dialog(kill_list):
     return result
 
 
+def activate_siri():
+    """Activate Siri using Spotlight search"""
+    try:
+        # Press Cmd+G to open Spotlight (or use Cmd+Space)
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "g" using command down'])
+        
+        # Wait a moment for Spotlight to open
+        import time
+        time.sleep(0.5)
+        
+        # Type "siri" and press Enter
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to keystroke "siri"'])
+        time.sleep(0.3)
+        subprocess.run(["osascript", "-e", 'tell application "System Events" to key code 36'])  # Enter key
+        
+        return True
+    except Exception as e:
+        print(f"Error activating Siri: {e}")
+        return False
+
 def send_message(event=None):
     prompt = input_field.get()
     if not prompt.strip():
+        return
+
+    # Check if user wants to activate Siri
+    if prompt.lower().strip() == "siri":
+        input_field.delete(0, tk.END)
+        chat_box.config(state=tk.NORMAL)
+        chat_box.insert(tk.END, f"You: {prompt}\n", "user")
+        chat_box.see(tk.END)
+        
+        if activate_siri():
+            chat_box.insert(tk.END, "🎙️ Siri activated!\n", "gemini")
+        else:
+            chat_box.insert(tk.END, "❌ Failed to activate Siri\n", "gemini")
+        
+        chat_box.config(state=tk.DISABLED)
+        chat_box.see(tk.END)
         return
 
     input_field.delete(0, tk.END)
