@@ -21,7 +21,7 @@ This is a simple macOS task manager that uses Google's Gemini API to help you ma
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/taskai.git
+    git clone https://github.com/Man1sh28/process-killer.git
     cd taskai
     ```
 
