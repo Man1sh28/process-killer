@@ -32,7 +32,9 @@ def get_installed_apps():
 installed_apps = ", ".join(get_installed_apps())
 def ask_gemini(prompt, process_list):
     system_prompt = f"""
-You are a chatbot assistant that tells me the general knowledge data helps me in daily processes that can also help in opening and killing in macoos
+You are my intelligent assistant. Your role is to provide me with general knowledge that helps in my day-to-day tasks and improves my productivity. In particular, you should assist with system-level tasks on macOS—such as viewing, opening, and intelligently killing processes based on memory (RAM) or CPU/GPU usage. Provide helpful command-line tools, shortcuts, terminal commands, and system monitoring techniques that are useful for managing performance and troubleshooting issues on macOS. Whenever possible, also suggest optimized workflows or automation ideas that make my work more efficient.
+
+
 
 Here is a list of installed apps:
 {installed_apps}
@@ -145,23 +147,23 @@ def show_kill_dialog(kill_list):
     canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
     canvas.configure(yscrollcommand=scrollbar.set)
     
-    # Store checkbox variables
+    
     checkbox_vars = {}
     
-    # Get current processes for detailed info
+   
     current_processes = get_running_processes()
     process_info = {p['name']: p for p in current_processes}
     
-    # Create checkboxes for each process
+    
     for i, process_name in enumerate(kill_list):
         var = tk.BooleanVar()
         checkbox_vars[process_name] = var
         
-        # Get process info if available
+        
         info = process_info.get(process_name, {})
         memory_info = f" ({info.get('memory_percent', 0):.1f}% RAM)" if info else ""
         
-        # Check if process is protected
+        
         protected = ['launchd', 'kernel', 'system', 'windowserver', 'finder', 'dock']
         is_protected = any(p in process_name.lower() for p in protected)
         
@@ -180,20 +182,20 @@ def show_kill_dialog(kill_list):
             warning_label = ttk.Label(checkbox_frame, text="(Protected)", foreground="red", font=("Segoe UI", 9))
             warning_label.pack(side=tk.LEFT, padx=(5, 0))
         else:
-            # Pre-check non-protected processes
+            
             var.set(True)
     
     canvas.pack(side="left", fill="both", expand=True)
     scrollbar.pack(side="right", fill="y")
     
-    # Button frames - separate for better layout
+    #
     select_frame = ttk.Frame(main_frame)
     select_frame.pack(fill=tk.X, pady=(10, 5))
     
     action_frame = ttk.Frame(main_frame)
     action_frame.pack(fill=tk.X, pady=(5, 0))
     
-    # Select All/None buttons
+   
     def select_all():
         for name, var in checkbox_vars.items():
             protected = ['launchd', 'kernel', 'system', 'windowserver', 'finder', 'dock']
